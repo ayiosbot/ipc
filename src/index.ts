@@ -29,7 +29,7 @@ export default class IPCManager {
             }
             this._callbacks.forEach(data => {
                 // console.log(`Comparing data[0](${data[0]}) to op (${content.op})`);
-                if (data[0] === content.op) data[1](content);
+                if (data[0] === content.op) data[1](content.d);
             });
         }
         process.on('message', this.listener);
