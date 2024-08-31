@@ -7,23 +7,23 @@
 import { randomUUID } from 'crypto';
 import { Worker } from 'cluster';
 
-export interface IPCMessage<T = any> {
+export interface IPCEvent<T = any> {
     /** The operation code sent (always a number) */
     op: number;
-    /** The data passed through the message */
+    /** The data passed through the event */
     d: T;
 }
 
 export default class IPCManager {
     private readonly workers = new Set<Worker>();
-    private readonly _callbacks = new Map<string, [code: number, callback: (message: IPCMessage) => void]>;
-    public readonly listener: (message: any) => void;
+    private readonly _callbacks = new Map<string, [code: number, callback: (d: any) => void]>;
+    public readonly listener: (event: any) => void;
     public readonly autoRemove: boolean = false;
     constructor(autoRemove: boolean = false) {
         this.autoRemove = autoRemove;
-        this.listener = (message) => {
+        this.listener = (event) => {
             try {
-                var content = JSON.parse(message) as IPCMessage;
+                var content = JSON.parse(event) as IPCEvent;
             } catch {
                 return;
             }
@@ -45,28 +45,28 @@ export default class IPCManager {
         worker.removeListener('message', this.listener);
         this.workers.delete(worker);
     }
-    onMessage<T>(code: number, callback: (message: IPCMessage<T>) => void) {
+    onEvent<T>(code: number, callback: (data: T) => void) {
         const uuid = randomUUID();
         this._callbacks.set(uuid, [ code, callback ]);
         return uuid;
     }
-    sendMessage<T = boolean | [number, boolean][]>(code: number, target: Worker | '*' | 'primary', message: any, timeout: number = 5000): T {
+    sendEvent<T = boolean | [number, boolean][]>(code: number, target: Worker | '*' | 'primary', data: any): T { // todo: add timeout; (for responses)
         if (target === '*') {
             const booleans = [];
             for (const worker of this.workers) {
-                const result = worker.send(JSON.stringify({ op: code, d: message }));
+                const result = worker.send(JSON.stringify({ op: code, d: data }));
                 booleans.push([worker.id, result]);
             }
             return booleans as T;
         } else if (target === 'primary') {
             if (process.send) {
-                return process.send(JSON.stringify({ op: code, d: message })) as T;
+                return process.send(JSON.stringify({ op: code, d: data })) as T;
             } else return false as T;
         } else {
-            return target.send(JSON.stringify({ op: code, d: message })) as T;
+            return target.send(JSON.stringify({ op: code, d: data })) as T;
         }
     }
-    removeMessageListener(target: string | number, type: 'code' | 'id' = 'id') {
+    removeEventListener(target: string | number, type: 'code' | 'id' = 'id') {
         if (typeof target === 'string') {
             this._callbacks.delete(target as string);
         } else if (typeof target == 'number') {
